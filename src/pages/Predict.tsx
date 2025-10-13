@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, HelpCircle, Download, Trash2, Beaker } from "lucide-react";
+import { Loader2, HelpCircle, Download, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
+import predictionBg from "@/assets/prediction-bg.jpg";
 
 interface PredictionResult {
   id: string;
@@ -28,11 +28,10 @@ ACDEFGHIKLMNPQRSTVWY
 >Example_Non-AMP_2
 MTEITAAMVKELRESTGAGMMDCK`;
 
-const Index = () => {
+const Predict = () => {
   const [input, setInput] = useState("");
   const [results, setResults] = useState<PredictionResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   const validateSequence = (seq: string): boolean => {
     return seq.split("").every((char) => VALID_AMINO_ACIDS.includes(char.toUpperCase()));
@@ -44,7 +43,7 @@ const Index = () => {
     let currentId = "";
     let currentSeq = "";
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
       const trimmedLine = line.trim();
       if (trimmedLine.startsWith(">")) {
         if (currentSeq) {
@@ -61,7 +60,6 @@ const Index = () => {
       sequences.push({ id: currentId || `Sequence ${sequences.length + 1}`, sequence: currentSeq });
     }
 
-    // If no FASTA format, treat each line as a sequence
     if (sequences.length === 0) {
       lines.forEach((line, index) => {
         const seq = line.trim().toUpperCase().replace(/\s/g, "");
@@ -81,7 +79,6 @@ const Index = () => {
   };
 
   const mockPredict = (sequence: string): number => {
-    // Mock prediction function - returns random probability
     return Math.random();
   };
 
@@ -106,7 +103,6 @@ const Index = () => {
       return;
     }
 
-    // Validate sequences
     const invalidSeqs = sequences.filter((s) => !validateSequence(s.sequence));
     if (invalidSeqs.length > 0) {
       toast({
@@ -119,7 +115,6 @@ const Index = () => {
 
     setIsLoading(true);
 
-    // Simulate prediction delay
     setTimeout(() => {
       const predictions: PredictionResult[] = sequences.map((seq) => {
         const truncatedSeq = seq.sequence.substring(0, MAX_SEQUENCE_LENGTH);
@@ -185,77 +180,29 @@ const Index = () => {
     });
   };
 
-  const charCount = input.length;
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-medium">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <Beaker className="h-8 w-8" />
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">CLuMMA</h1>
-              <p className="text-sm text-primary-foreground/90">
-                Clustering-based Machine Learning for Antimicrobial Peptide Prediction
-              </p>
-            </div>
+      {/* Hero Section with Background */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-info/5 to-success/5 py-12">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-10"
+          style={{ backgroundImage: `url(${predictionBg})` }}
+        />
+        <div className="relative container mx-auto px-4">
+          <div className="max-w-3xl mx-auto text-center space-y-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground">
+              AMP Prediction Tool
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Enter your amino acid sequences below to predict antimicrobial activity
+            </p>
           </div>
         </div>
-      </header>
+      </section>
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* About Section */}
-        <Collapsible open={aboutOpen} onOpenChange={setAboutOpen} className="mb-8">
-          <Card>
-            <CardHeader>
-              <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
-                <div>
-                  <CardTitle>About CLuMMA</CardTitle>
-                  <CardDescription>Learn about the model and its capabilities</CardDescription>
-                </div>
-                <Button variant="ghost" size="sm">
-                  {aboutOpen ? "Hide" : "Show"}
-                </Button>
-              </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent className="space-y-4 text-sm">
-                <div>
-                  <h3 className="font-semibold text-foreground mb-2">Model Description</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    CLuMMA uses a deep neural network with multi-scale convolutional layers and attention
-                    mechanisms to predict antimicrobial activity in amino acid sequences. The model has been
-                    trained on curated datasets of known AMPs and non-AMPs to provide accurate predictions.
-                  </p>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-info-muted p-4 rounded-lg">
-                    <h4 className="font-semibold text-foreground mb-1">Technical Specifications</h4>
-                    <ul className="text-muted-foreground space-y-1 text-xs">
-                      <li>• Input: Amino acid sequences (max 50 residues)</li>
-                      <li>• Output: AMP probability (0.0 - 1.0)</li>
-                      <li>• Threshold: 0.5 for binary classification</li>
-                      <li>• Architecture: Deep CNN with attention layers</li>
-                    </ul>
-                  </div>
-
-                  <div className="bg-secondary p-4 rounded-lg">
-                    <h4 className="font-semibold text-foreground mb-1">Performance Metrics</h4>
-                    <p className="text-muted-foreground text-xs">
-                      Model performance metrics including accuracy, sensitivity, and specificity are available
-                      in the published research paper.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-
         {/* Input Section */}
-        <Card className="mb-8 shadow-medium">
+        <Card className="mb-8 shadow-medium border-primary/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -291,10 +238,10 @@ const Index = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={EXAMPLE_SEQUENCES}
-                className="font-mono text-sm min-h-[200px] resize-y"
+                className="font-mono text-sm min-h-[200px] resize-y bg-secondary/30"
               />
               <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-                {charCount} characters
+                {input.length} characters
               </div>
             </div>
 
@@ -318,8 +265,8 @@ const Index = () => {
 
         {/* Results Section */}
         {results.length > 0 && (
-          <Card className="shadow-medium">
-            <CardHeader>
+          <Card className="shadow-medium border-primary/20">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-success/5">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Prediction Results</CardTitle>
@@ -331,7 +278,7 @@ const Index = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -390,35 +337,8 @@ const Index = () => {
           </Card>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t mt-16 bg-muted/30">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center space-y-2">
-            <p className="text-sm font-semibold text-foreground">
-              CLuMMA - Antimicrobial Peptide Prediction Tool
-            </p>
-            <p className="text-xs text-muted-foreground">
-              For research purposes only. Please cite our work when using this tool in publications.
-            </p>
-            <div className="flex justify-center gap-4 text-xs text-muted-foreground">
-              <a href="#" className="hover:text-primary transition-colors">
-                Research Paper
-              </a>
-              <span>•</span>
-              <a href="#" className="hover:text-primary transition-colors">
-                GitHub Repository
-              </a>
-              <span>•</span>
-              <a href="#" className="hover:text-primary transition-colors">
-                Contact
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
 
-export default Index;
+export default Predict;
