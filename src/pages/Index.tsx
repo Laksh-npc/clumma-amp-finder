@@ -1,12 +1,422 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, HelpCircle, Download, Trash2, Beaker } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { toast } from "@/hooks/use-toast";
+
+interface PredictionResult {
+  id: string;
+  sequence: string;
+  probability: number;
+  prediction: "AMP" | "Non-AMP";
+  confidence: "High" | "Medium" | "Low";
+}
+
+const VALID_AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY";
+const MAX_SEQUENCE_LENGTH = 50;
+
+const EXAMPLE_SEQUENCES = `>Example_AMP_1
+KKKKKKKKKKKKKKKKKKKK
+>Example_AMP_2
+GIGKFLHSAKKFGKAFVGEIMNS
+>Example_Non-AMP_1
+ACDEFGHIKLMNPQRSTVWY
+>Example_Non-AMP_2
+MTEITAAMVKELRESTGAGMMDCK`;
 
 const Index = () => {
+  const [input, setInput] = useState("");
+  const [results, setResults] = useState<PredictionResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const validateSequence = (seq: string): boolean => {
+    return seq.split("").every((char) => VALID_AMINO_ACIDS.includes(char.toUpperCase()));
+  };
+
+  const parseInput = (text: string): { id: string; sequence: string }[] => {
+    const lines = text.trim().split("\n");
+    const sequences: { id: string; sequence: string }[] = [];
+    let currentId = "";
+    let currentSeq = "";
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith(">")) {
+        if (currentSeq) {
+          sequences.push({ id: currentId || `Sequence ${sequences.length + 1}`, sequence: currentSeq });
+        }
+        currentId = trimmedLine.substring(1).trim();
+        currentSeq = "";
+      } else if (trimmedLine) {
+        currentSeq += trimmedLine.toUpperCase().replace(/\s/g, "");
+      }
+    });
+
+    if (currentSeq) {
+      sequences.push({ id: currentId || `Sequence ${sequences.length + 1}`, sequence: currentSeq });
+    }
+
+    // If no FASTA format, treat each line as a sequence
+    if (sequences.length === 0) {
+      lines.forEach((line, index) => {
+        const seq = line.trim().toUpperCase().replace(/\s/g, "");
+        if (seq) {
+          sequences.push({ id: `Sequence ${index + 1}`, sequence: seq });
+        }
+      });
+    }
+
+    return sequences;
+  };
+
+  const getConfidenceLevel = (prob: number): "High" | "Medium" | "Low" => {
+    if (prob > 0.8 || prob < 0.2) return "High";
+    if (prob >= 0.3 && prob <= 0.7) return "Medium";
+    return "Low";
+  };
+
+  const mockPredict = (sequence: string): number => {
+    // Mock prediction function - returns random probability
+    return Math.random();
+  };
+
+  const handlePredict = () => {
+    if (!input.trim()) {
+      toast({
+        title: "No input",
+        description: "Please enter at least one amino acid sequence",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sequences = parseInput(input);
+
+    if (sequences.length === 0) {
+      toast({
+        title: "Invalid input",
+        description: "No valid sequences found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate sequences
+    const invalidSeqs = sequences.filter((s) => !validateSequence(s.sequence));
+    if (invalidSeqs.length > 0) {
+      toast({
+        title: "Invalid amino acids",
+        description: `Found invalid characters. Only ${VALID_AMINO_ACIDS} are allowed`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Simulate prediction delay
+    setTimeout(() => {
+      const predictions: PredictionResult[] = sequences.map((seq) => {
+        const truncatedSeq = seq.sequence.substring(0, MAX_SEQUENCE_LENGTH);
+        const probability = mockPredict(truncatedSeq);
+        const prediction = probability >= 0.5 ? "AMP" : "Non-AMP";
+        const confidence = getConfidenceLevel(probability);
+
+        return {
+          id: seq.id,
+          sequence: truncatedSeq,
+          probability,
+          prediction,
+          confidence,
+        };
+      });
+
+      setResults(predictions);
+      setIsLoading(false);
+      toast({
+        title: "Prediction complete",
+        description: `Analyzed ${predictions.length} sequence${predictions.length > 1 ? "s" : ""}`,
+      });
+    }, 1500);
+  };
+
+  const handleLoadExample = () => {
+    setInput(EXAMPLE_SEQUENCES);
+    toast({
+      title: "Example loaded",
+      description: "Sample sequences loaded into input area",
+    });
+  };
+
+  const handleClear = () => {
+    setInput("");
+    setResults([]);
+  };
+
+  const handleDownloadCSV = () => {
+    if (results.length === 0) return;
+
+    const headers = ["Sequence ID", "Sequence", "AMP Probability", "Prediction", "Confidence Level"];
+    const rows = results.map((r) => [
+      r.id,
+      r.sequence,
+      r.probability.toFixed(3),
+      r.prediction,
+      r.confidence,
+    ]);
+
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "clumma_predictions.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Download started",
+      description: "Results exported to CSV",
+    });
+  };
+
+  const charCount = input.length;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-medium">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-3">
+            <Beaker className="h-8 w-8" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">CLuMMA</h1>
+              <p className="text-sm text-primary-foreground/90">
+                Clustering-based Machine Learning for Antimicrobial Peptide Prediction
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* About Section */}
+        <Collapsible open={aboutOpen} onOpenChange={setAboutOpen} className="mb-8">
+          <Card>
+            <CardHeader>
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                <div>
+                  <CardTitle>About CLuMMA</CardTitle>
+                  <CardDescription>Learn about the model and its capabilities</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm">
+                  {aboutOpen ? "Hide" : "Show"}
+                </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-4 text-sm">
+                <div>
+                  <h3 className="font-semibold text-foreground mb-2">Model Description</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    CLuMMA uses a deep neural network with multi-scale convolutional layers and attention
+                    mechanisms to predict antimicrobial activity in amino acid sequences. The model has been
+                    trained on curated datasets of known AMPs and non-AMPs to provide accurate predictions.
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-info-muted p-4 rounded-lg">
+                    <h4 className="font-semibold text-foreground mb-1">Technical Specifications</h4>
+                    <ul className="text-muted-foreground space-y-1 text-xs">
+                      <li>• Input: Amino acid sequences (max 50 residues)</li>
+                      <li>• Output: AMP probability (0.0 - 1.0)</li>
+                      <li>• Threshold: 0.5 for binary classification</li>
+                      <li>• Architecture: Deep CNN with attention layers</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-secondary p-4 rounded-lg">
+                    <h4 className="font-semibold text-foreground mb-1">Performance Metrics</h4>
+                    <p className="text-muted-foreground text-xs">
+                      Model performance metrics including accuracy, sensitivity, and specificity are available
+                      in the published research paper.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Input Section */}
+        <Card className="mb-8 shadow-medium">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Sequence Input
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">
+                          Enter sequences in FASTA format (starting with &gt;header) or plain text (one
+                          sequence per line). Only standard amino acids are accepted. Sequences longer than 50
+                          residues will be truncated.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </CardTitle>
+                <CardDescription>
+                  Enter amino acid sequences in FASTA format or plain text
+                </CardDescription>
+              </div>
+              <Button onClick={handleLoadExample} variant="outline" size="sm">
+                Load Example
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={EXAMPLE_SEQUENCES}
+                className="font-mono text-sm min-h-[200px] resize-y"
+              />
+              <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                {charCount} characters
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={handlePredict} disabled={isLoading} className="flex-1">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  "Predict AMPs"
+                )}
+              </Button>
+              <Button onClick={handleClear} variant="outline" disabled={isLoading}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Results Section */}
+        {results.length > 0 && (
+          <Card className="shadow-medium">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Prediction Results</CardTitle>
+                  <CardDescription>{results.length} sequences analyzed</CardDescription>
+                </div>
+                <Button onClick={handleDownloadCSV} variant="outline" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download CSV
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-semibold">Sequence ID</th>
+                      <th className="text-left p-3 font-semibold">Sequence</th>
+                      <th className="text-right p-3 font-semibold">Probability</th>
+                      <th className="text-center p-3 font-semibold">Prediction</th>
+                      <th className="text-center p-3 font-semibold">Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((result, index) => (
+                      <tr key={index} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3 font-medium">{result.id}</td>
+                        <td className="p-3 font-mono text-xs">
+                          {result.sequence.length > 30
+                            ? result.sequence.substring(0, 30) + "..."
+                            : result.sequence}
+                        </td>
+                        <td className="p-3 text-right font-mono">{result.probability.toFixed(3)}</td>
+                        <td className="p-3 text-center">
+                          <Badge
+                            className={
+                              result.prediction === "AMP"
+                                ? "bg-success text-success-foreground"
+                                : "bg-warning text-warning-foreground"
+                            }
+                          >
+                            {result.prediction}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-center">
+                          <Badge
+                            variant={result.confidence === "High" ? "default" : "outline"}
+                            className={result.confidence === "Low" ? "text-muted-foreground" : ""}
+                          >
+                            {result.confidence}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4 p-4 bg-info-muted rounded-lg text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground mb-1">Interpretation Guide:</p>
+                <ul className="space-y-1">
+                  <li>• <span className="font-medium">AMP Probability:</span> Higher values indicate stronger predicted antimicrobial activity</li>
+                  <li>• <span className="font-medium">Prediction:</span> AMP if probability ≥ 0.5, Non-AMP otherwise</li>
+                  <li>• <span className="font-medium">Confidence:</span> High (&gt;0.8 or &lt;0.2), Medium (0.3-0.7), Low (0.2-0.3 or 0.7-0.8)</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t mt-16 bg-muted/30">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              CLuMMA - Antimicrobial Peptide Prediction Tool
+            </p>
+            <p className="text-xs text-muted-foreground">
+              For research purposes only. Please cite our work when using this tool in publications.
+            </p>
+            <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+              <a href="#" className="hover:text-primary transition-colors">
+                Research Paper
+              </a>
+              <span>•</span>
+              <a href="#" className="hover:text-primary transition-colors">
+                GitHub Repository
+              </a>
+              <span>•</span>
+              <a href="#" className="hover:text-primary transition-colors">
+                Contact
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
