@@ -28,6 +28,8 @@ ACDEFGHIKLMNPQRSTVWY
 >Example_Non-AMP_2
 MTEITAAMVKELRESTGAGMMDCK`;
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 const Predict = () => {
   const [input, setInput] = useState("");
   const [results, setResults] = useState<PredictionResult[]>([]);
@@ -78,11 +80,7 @@ const Predict = () => {
     return "Low";
   };
 
-  const mockPredict = (sequence: string): number => {
-    return Math.random();
-  };
-
-  const handlePredict = () => {
+  const handlePredict = async () => {
     if (!input.trim()) {
       toast({
         title: "No input",
@@ -114,30 +112,49 @@ const Predict = () => {
     }
 
     setIsLoading(true);
+    try {
+      const payload = {
+        items: sequences.map((s) => ({
+          id: s.id,
+          sequence: s.sequence.slice(0, MAX_SEQUENCE_LENGTH),
+        })),
+      };
 
-    setTimeout(() => {
-      const predictions: PredictionResult[] = sequences.map((seq) => {
-        const truncatedSeq = seq.sequence.substring(0, MAX_SEQUENCE_LENGTH);
-        const probability = mockPredict(truncatedSeq);
-        const prediction = probability >= 0.5 ? "AMP" : "Non-AMP";
-        const confidence = getConfidenceLevel(probability);
-
-        return {
-          id: seq.id,
-          sequence: truncatedSeq,
-          probability,
-          prediction,
-          confidence,
-        };
+      const resp = await fetch(`${API_URL}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
+      if (!resp.ok) {
+        throw new Error(`Server error (${resp.status})`);
+      }
+
+      const data = await resp.json();
+      const predictions: PredictionResult[] = (data?.results ?? []).map((r: any) => ({
+        id: r.id,
+        sequence: r.sequence,
+        probability: Number(r.probability),
+        prediction: r.prediction === "AMP" ? "AMP" : "Non-AMP",
+        confidence: (["High", "Medium", "Low"].includes(r.confidence)
+          ? r.confidence
+          : getConfidenceLevel(Number(r.probability))) as PredictionResult["confidence"],
+      }));
+
       setResults(predictions);
-      setIsLoading(false);
       toast({
         title: "Prediction complete",
         description: `Analyzed ${predictions.length} sequence${predictions.length > 1 ? "s" : ""}`,
       });
-    }, 1500);
+    } catch (err: any) {
+      toast({
+        title: "Prediction failed",
+        description: err?.message || "Unexpected error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLoadExample = () => {
