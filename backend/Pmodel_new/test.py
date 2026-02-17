@@ -1,4 +1,3 @@
-
 import argparse
 from textwrap import dedent
 from Bio import SeqIO

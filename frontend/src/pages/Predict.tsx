@@ -6,27 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, HelpCircle, Download, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
-import predictionBg from "@/assets/prediction-bg.jpg";
 
 interface PredictionResult {
   id: string;
   sequence: string;
   probability: number;
-  prediction: "AMP" | "Non-AMP";
-  confidence: "High" | "Medium" | "Low";
+  prediction: "AHCP" | "Non-AHCP";
 }
 
 const VALID_AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY";
 const MAX_SEQUENCE_LENGTH = 50;
 
-const EXAMPLE_SEQUENCES = `>Example_AMP_1
-KKKKKKKKKKKKKKKKKKKK
->Example_AMP_2
-GIGKFLHSAKKFGKAFVGEIMNS
->Example_Non-AMP_1
-QQQQQQQQQ
->Example_Non-AMP_2
-ACDEFGHIKLMNPQRSTVWY`;
+const EXAMPLE_SEQUENCES = `MWKRDLGI
+LLKSRWAI
+TSVPLQAA
+QQQQQQQQ`;
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -40,44 +34,21 @@ const Predict = () => {
   };
 
   const parseInput = (text: string): { id: string; sequence: string }[] => {
-    const lines = text.trim().split("\n");
     const sequences: { id: string; sequence: string }[] = [];
-    let currentId = "";
-    let currentSeq = "";
-
-    lines.forEach((line) => {
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith(">")) {
-        if (currentSeq) {
-          sequences.push({ id: currentId || `Sequence ${sequences.length + 1}`, sequence: currentSeq });
-        }
-        currentId = trimmedLine.substring(1).trim();
-        currentSeq = "";
-      } else if (trimmedLine) {
-        currentSeq += trimmedLine.toUpperCase().replace(/\s/g, "");
+    const lines = text
+      .trim()
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    
+    lines.forEach((line, index) => {
+      const seq = line.toUpperCase().replace(/\s/g, "");
+      if (seq) {
+        sequences.push({ id: `Sequence ${index + 1}`, sequence: seq });
       }
     });
 
-    if (currentSeq) {
-      sequences.push({ id: currentId || `Sequence ${sequences.length + 1}`, sequence: currentSeq });
-    }
-
-    if (sequences.length === 0) {
-      lines.forEach((line, index) => {
-        const seq = line.trim().toUpperCase().replace(/\s/g, "");
-        if (seq) {
-          sequences.push({ id: `Sequence ${index + 1}`, sequence: seq });
-        }
-      });
-    }
-
     return sequences;
-  };
-
-  const getConfidenceLevel = (prob: number): "High" | "Medium" | "Low" => {
-    if (prob > 0.8 || prob < 0.2) return "High";
-    if (prob >= 0.3 && prob <= 0.7) return "Medium";
-    return "Low";
   };
 
   const handlePredict = async () => {
@@ -135,10 +106,7 @@ const Predict = () => {
         id: r.id,
         sequence: r.sequence,
         probability: Number(r.probability),
-        prediction: r.prediction === "AMP" ? "AMP" : "Non-AMP",
-        confidence: (["High", "Medium", "Low"].includes(r.confidence)
-          ? r.confidence
-          : getConfidenceLevel(Number(r.probability))) as PredictionResult["confidence"],
+        prediction: r.prediction === "AHCP" ? "AHCP" : "Non-AHCP",
       }));
 
       setResults(predictions);
@@ -173,13 +141,12 @@ const Predict = () => {
   const handleDownloadCSV = () => {
     if (results.length === 0) return;
 
-    const headers = ["Sequence ID", "Sequence", "AMP Probability", "Prediction", "Confidence Level"];
+    const headers = ["Sequence ID", "Sequence", "AHCP Probability", "Prediction"];
     const rows = results.map((r) => [
       r.id,
       r.sequence,
       r.probability.toFixed(3),
       r.prediction,
-      r.confidence,
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -187,7 +154,7 @@ const Predict = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "clumma_predictions.csv";
+    a.download = "pred-anti-hepatitis-c-peptide-prediction-dl_predictions.csv";
     a.click();
     URL.revokeObjectURL(url);
 
@@ -199,16 +166,12 @@ const Predict = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section with Background */}
+      {/* Banner Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-info/5 to-success/5 py-12">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-10"
-          style={{ backgroundImage: `url(${predictionBg})` }}
-        />
         <div className="relative container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center space-y-4">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-              AMP Prediction Tool
+              Anti Hepatitis C Peptide Prediction Tool
             </h1>
             <p className="text-lg text-muted-foreground">
               Enter your amino acid sequences below to predict antimicrobial activity
@@ -270,7 +233,7 @@ const Predict = () => {
                     Analyzing...
                   </>
                 ) : (
-                  "Predict AMPs"
+                  "Predict AHCPs"
                 )}
               </Button>
               <Button onClick={handleClear} variant="outline" disabled={isLoading}>
@@ -304,7 +267,6 @@ const Predict = () => {
                       <th className="text-left p-3 font-semibold">Sequence</th>
                       <th className="text-right p-3 font-semibold">Probability</th>
                       <th className="text-center p-3 font-semibold">Prediction</th>
-                      <th className="text-center p-3 font-semibold">Confidence</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -320,20 +282,12 @@ const Predict = () => {
                         <td className="p-3 text-center">
                           <Badge
                             className={
-                              result.prediction === "AMP"
+                              result.prediction === "AHCP"
                                 ? "bg-success text-success-foreground"
                                 : "bg-warning text-warning-foreground"
                             }
                           >
                             {result.prediction}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-center">
-                          <Badge
-                            variant={result.confidence === "High" ? "default" : "outline"}
-                            className={result.confidence === "Low" ? "text-muted-foreground" : ""}
-                          >
-                            {result.confidence}
                           </Badge>
                         </td>
                       </tr>
@@ -345,9 +299,8 @@ const Predict = () => {
               <div className="mt-4 p-4 bg-info-muted rounded-lg text-xs text-muted-foreground">
                 <p className="font-semibold text-foreground mb-1">Interpretation Guide:</p>
                 <ul className="space-y-1">
-                  <li>• <span className="font-medium">AMP Probability:</span> Higher values indicate stronger predicted antimicrobial activity</li>
-                  <li>• <span className="font-medium">Prediction:</span> AMP if probability ≥ 0.5, Non-AMP otherwise</li>
-                  <li>• <span className="font-medium">Confidence:</span> High (&gt;0.8 or &lt;0.2), Medium (0.3-0.7), Low (0.2-0.3 or 0.7-0.8)</li>
+                  <li>• <span className="font-medium">AHCP Probability:</span> Higher values indicate stronger predicted anti-hepatitis C peptide activity</li>
+                  <li>• <span className="font-medium">Prediction:</span> AHCP if probability ≥ 0.5, Non-AHCP otherwise</li>
                 </ul>
               </div>
             </CardContent>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Beaker, Home, FlaskConical, BookOpen, Mail } from "lucide-react";
+import { Beaker, Home, FlaskConical, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Navigation = () => {
@@ -9,7 +9,6 @@ const Navigation = () => {
     { path: "/", label: "Home", icon: Home },
     { path: "/predict", label: "Prediction", icon: FlaskConical },
     { path: "/research", label: "Research", icon: BookOpen },
-    { path: "/contact", label: "Contact", icon: Mail },
   ];
 
   return (
@@ -20,8 +19,7 @@ const Navigation = () => {
           <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
             <Beaker className="h-8 w-8" />
             <div>
-              <h1 className="text-xl font-bold tracking-tight">CLuMMA</h1>
-              <p className="text-xs text-primary-foreground/80 hidden md:block">AMP Prediction Tool</p>
+              <h1 className="text-xl font-bold tracking-tight">PRED-AHCP-DL</h1>
             </div>
           </Link>
 

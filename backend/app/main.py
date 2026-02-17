@@ -14,7 +14,7 @@ import torch
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("clumma")
 
-app = FastAPI(title="CLuMMA AMP Predictor", version="1.0.0")
+app = FastAPI(title="CLuMMA AHCP Predictor", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -122,8 +122,7 @@ class PredictResponseItem(BaseModel):
     id: str
     sequence: str
     probability: float
-    prediction: str  # "AMP" or "Non-AMP"
-    confidence: str  # "High" | "Medium" | "Low"
+    prediction: str  # "AHCP" or "Non-AHCP"
 
 
 class PredictResponse(BaseModel):
@@ -160,14 +159,14 @@ def health():
 @app.post("/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     """
-    Predict AMP (Antimicrobial Peptide) probability for amino acid sequences
+    Predict AHCP (Anti-Hepatitis C Peptide) probability for amino acid sequences
     
     Uses SNNModel from Pmodel_new with 35-feature encoding:
     - 20 features: one-hot encoding for amino acids (ACDEFGHIKLMNPQRSTVWY)
     - 15 features: physicochemical properties (charge × 3, hydrophobicity × 3, 
                    secondary structure × 3, polarity groups × 6)
     
-    Returns prediction ("AMP" if probability > 0.5), raw probability, and confidence
+    Returns prediction ("AHCP" if probability > 0.5) and raw probability
     """
     if not req.items:
         return {"results": []}
@@ -190,9 +189,9 @@ def predict(req: PredictRequest):
         out_channels = 32
         
         m = SNNModel(X_test.shape, in_channels, heads, out_channels)
-        m.load_state_dict(torch.load(PMODEL_NEW_WEIGHTS, map_location="cpu"))
+        m.load_state_dict(torch.load(PMODEL_NEW_WEIGHTS, map_location="cpu", weights_only=False))
+        m.eval()  # Set to eval mode for BatchNorm to use running stats instead of batch stats
         
-        # EXACT inference logic from test.py (no eval(), no no_grad())
         # Create per-request attention output directory
         try:
             ATTENTION_BASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -203,8 +202,14 @@ def predict(req: PredictRequest):
         req_dir.mkdir(parents=True, exist_ok=True)
 
         # Run model forward (this writes Attention_*.csv in CWD via layers.py)
-        probs_t = torch.squeeze(m(X_test.float()))
-        probs_np = probs_t.detach().numpy()
+        with torch.no_grad():  # Disable gradient computation for inference
+            probs_t = torch.squeeze(m(X_test.float()))
+            probs_np = probs_t.detach().cpu().numpy()
+            # Ensure probs_np is always 1D (handle case when single sequence becomes scalar)
+            if probs_np.ndim == 0:
+                probs_np = np.array([probs_np])
+            elif probs_np.ndim > 1:
+                probs_np = probs_np.flatten()
 
         # Move any Attention_*.csv created by the model to the per-request folder
         try:
@@ -217,13 +222,12 @@ def predict(req: PredictRequest):
         results = []
         for item, p in zip(req.items, probs_np):
             p_float = float(p)
-            pred = "AMP" if p_float > 0.5 else "Non-AMP"
+            pred = "AHCP" if p_float > 0.5 else "Non-AHCP"
             results.append({
                 "id": item.id,
                 "sequence": item.sequence[:MAX_SEQUENCE_LENGTH],
                 "probability": p_float,
                 "prediction": pred,
-                "confidence": confidence_from_prob(p_float),
             })
         return {"results": results, "attention_dir": str(req_dir)}
     
